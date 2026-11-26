@@ -1,0 +1,15 @@
+export const categories = ["All", "Data & Tech", "Finance & Accounting", "Design & Branding", "Operations"];
+export type Project = { id: string; title: string; organization: string; category: string; specialist: string; specialty: string; collaborator: string; collaboratorRole: string; duration: string; reward: string; icon: "clinic" | "code" | "design"; deliverables: string[] };
+export const projects: Project[] = [
+  { id: "clinic", title: "Clinic Inventory & Pharmacy Tracker", organization: "Amani Community Clinic", category: "Data & Tech", specialist: "Yusuf", specialty: "Data & Excel Specialist", collaborator: "Grace", collaboratorRole: "Healthcare Ops Lead", duration: "2 weeks", reward: "$150 Micro-Stipend", icon: "clinic", deliverables: ["Map pharmacy inventory workflow", "Build stock tracking dashboard", "Hand over tracker & training guide"] },
+  { id: "coop", title: "Cooperative Digital Ledger & Member Portal", organization: "Rift Valley Farmers Co-op", category: "Finance & Accounting", specialist: "Mariam", specialty: "Software Engineer", collaborator: "David", collaboratorRole: "Local FinTech Mentor", duration: "3 weeks", reward: "Pro-Bono + Referral Pledge", icon: "code", deliverables: ["Review member ledger", "Build digital ledger & member portal", "Train cooperative team"] },
+  { id: "brand", title: "Brand Refresh & Packaging Design", organization: "Savanna Artisans SME", category: "Design & Branding", specialist: "Samuel", specialty: "Graphic Designer", collaborator: "Wanjiku", collaboratorRole: "Local Agency Creative Director", duration: "2 weeks", reward: "Pro-Bono + Referral Pledge", icon: "design", deliverables: ["Agree brand direction", "Create packaging concepts", "Deliver print-ready brand kit"] },
+];
+export const swaps = [
+  { id: "excel", name: "Yusuf A.", role: "Data & Excel Specialist", initials: "YA", offer: "Advanced Excel & PowerBI Dashboard Training", detail: "4 sessions · Practical, hands-on learning", need: "Warm introductions to local accounting & audit firms", teach: "Financial Modeling", access: "Local Tech Referrals" },
+  { id: "react", name: "Mariam H.", role: "Software Engineer", initials: "MH", offer: "Full-Stack React & API Debugging Mentorship", detail: "3 sessions · Build and debug together", need: "Mock technical interviews & local startup referrals", teach: "Python", access: "Local Tech Referrals" },
+  { id: "copy", name: "Leila K.", role: "Communications Specialist", initials: "LK", offer: "Bilingual Copywriting & Social Media Kit", detail: "2 sessions · Find your brand voice", need: "Local business registration & procurement guidance", teach: "French / Arabic", access: "Licensing Guidance" },
+];
+export function isDualSigned(local: boolean, beneficiary: boolean) { return local && beneficiary; }
+export function canSubmitDeliverables(items: boolean[]) { return items.length > 0 && items.every(Boolean); }
+export function matchSwaps(teach: string, access: string) { return swaps.filter(s => s.teach === teach || s.access === access); }

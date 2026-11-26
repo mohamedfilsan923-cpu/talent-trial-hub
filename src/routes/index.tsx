@@ -1,287 +1,105 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState, type ReactNode } from "react";
+import { ArrowUpRight, ArrowRight, ArrowLeftRight, BadgeCheck, Check, CheckCheck, Clock3, Download, HeartHandshake, Leaf, MapPin, Plus, Send, ShieldCheck, Sparkles, Stethoscope, Code2, Palette, Users, Link2, CalendarDays, FileCheck2 } from "lucide-react";
 import { toast } from "sonner";
-import { Award, BadgeCheck, Briefcase, Calculator, CheckCircle2, ClipboardCheck, Copy, Download, Globe2, Languages, ShieldCheck, Sparkles, Star, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { canSubmitDeliverables, categories, isDualSigned, matchSwaps, projects, swaps, type Project } from "@/lib/guild";
+import community from "@/assets/community.asset.json";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "TalentSandbox — Risk-Free Trial-to-Hire for Refugee Talent" },
-      { name: "description", content: "Test vetted refugee professionals in co-funded 10-day paid trials, with objective scorecards and one-click hiring." },
-      { property: "og:title", content: "TalentSandbox — Risk-Free Trial-to-Hire" },
-      { property: "og:description", content: "Co-funded 2-week paid trials, bias-free rubrics and portable scorecards. Aligned with SDGs 8, 10 & 17." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
-  component: Index,
+  head: () => ({ meta: [
+    { title: "SkillSwap Local — Build Together. Prove Your Craft Locally." },
+    { name: "description", content: "Join a community co-build sprint, earn dual-signed local proof of work, and exchange skills with local professionals." },
+    { property: "og:title", content: "SkillSwap Local — A Local Co-Creation Guild" },
+    { property: "og:description", content: "Refugee specialists and local professionals building stronger communities together. Co-build rooms, trusted portfolios, and peer skill swaps." },
+    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
+  ] }), component: Index,
 });
-
-type Candidate = { id: string; name: string; role: string; origin: string; credential: string; skills: string[]; languages: string[]; category: string; tier: number; initials: string };
-const CANDIDATES: Candidate[] = [
-  { id: "amina", name: "Amina Hassan", role: "Full-Stack Developer", origin: "Somalia → Kenya", credential: "BSc Computer Science, Univ. of Nairobi", skills: ["React", "Node.js", "PostgreSQL"], languages: ["English", "Somali", "Swahili"], category: "Engineering", tier: 1, initials: "AH" },
-  { id: "tariq", name: "Tariq Al-Mansoor", role: "Financial Data Analyst", origin: "Syria → Jordan", credential: "MSc Finance, Damascus Univ. · CFA L2", skills: ["SQL", "Power BI", "Excel modelling"], languages: ["Arabic", "English"], category: "Finance", tier: 1, initials: "TA" },
-  { id: "olena", name: "Olena Kovalenko", role: "Senior UX Designer", origin: "Ukraine → Poland", credential: "MA Interaction Design, KPI Kyiv", skills: ["Figma", "User research", "Design systems"], languages: ["Ukrainian", "English", "Polish"], category: "Design", tier: 2, initials: "OK" },
-  { id: "jean", name: "Jean-Pierre Mugisha", role: "Junior Cloud Support Engineer", origin: "DRC → Uganda", credential: "AWS Cloud Practitioner · Diploma IT", skills: ["AWS", "Linux", "Bash"], languages: ["French", "English", "Lingala"], category: "Engineering", tier: 0, initials: "JM" },
-];
-const TIERS = ["Junior / Associate", "Mid-Level Specialist", "Senior Technical / Lead"];
-const TIER_DEFAULT_RATE = [20, 25, 40];
-const GRANTS = [
-  { label: "Standard NGO Co-Fund", pct: 60 },
-  { label: "ILO Cohort Partner Grant", pct: 80 },
-  { label: "Full Impact Fellowship", pct: 100 },
-];
-const CRITERIA = [
-  { key: "tech", label: "Technical & Tool Proficiency", weight: 0.3 },
-  { key: "prob", label: "Structured Problem-Solving", weight: 0.25 },
-  { key: "comm", label: "Workplace Communication & Async Updates", weight: 0.25 },
-  { key: "adapt", label: "Adaptability & Deadline Reliability", weight: 0.2 },
-] as const;
-const MILESTONES = [
-  { day: 1, title: "Onboarding & Scope", desc: "Access, tools, and trial brief agreed." },
-  { day: 3, title: "First Deliverable Check-in", desc: "Initial output reviewed async." },
-  { day: 7, title: "Mid-Trial Review", desc: "Structured feedback against rubric." },
-  { day: 10, title: "Final Demo & Sign-off", desc: "Demo, final scores, decision." },
-];
-const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const HOURS = 80;
-
-export function readiness(scores: Record<string, number>) {
-  const pct = Math.round(CRITERIA.reduce((a, c) => a + ((scores[c.key] ?? 0) / 5) * c.weight, 0) * 100);
-  const tier = pct >= 85 ? "Hire Ready" : pct >= 70 ? "Strong Potential" : pct >= 50 ? "Developing" : "Not Yet Ready";
-  return { pct, tier };
-}
-
-const TABS = [["overview", "Overview"], ["calculator", "Stipend Calculator"], ["rubric", "10-Day Rubric"], ["talent", "Candidate Sandbox"]] as const;
+const tabs = [["overview", "Overview"], ["rooms", "Co-Build Rooms"], ["portfolio", "Dual-Signature Portfolio"], ["barter", "Skill Barter"]];
 const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-
+const initialProject = projects[0];
+const fieldClass = "mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring";
 function Index() {
-  const [candidate, setCandidate] = useState<Candidate>(CANDIDATES[0]!);
-  const [tier, setTier] = useState(1);
-  const [rate, setRate] = useState(25);
-  const [grant, setGrant] = useState(1);
-  const [reserve, setReserve] = useState(false);
-  const [scores, setScores] = useState<Record<string, number>>({ tech: 5, prob: 5, comm: 4, adapt: 5 });
-  const [offer, setOffer] = useState(false);
-  const [cert, setCert] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
   const [filter, setFilter] = useState("All");
-
-  const total = rate * HOURS;
-  const pct = GRANTS[grant]!.pct;
-  const covered = (total * pct) / 100;
-  const net = total - covered;
-  const r = readiness(scores);
-  const certId = useMemo(() => `TSB-${candidate.initials}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, [candidate, cert]);
-
-  const startTrial = (c: Candidate) => {
-    setCandidate(c); setTier(c.tier); setRate(TIER_DEFAULT_RATE[c.tier]!);
-    toast.success(`${c.name} loaded into calculator & rubric`);
-    go("calculator");
+  const [room, setRoom] = useState<Project | null>(null);
+  const [roomChecks, setRoomChecks] = useState<Record<string, boolean[]>>({});
+  const [submitted, setSubmitted] = useState<string[]>([]);
+  const [certificateProject, setCertificateProject] = useState(initialProject);
+  const [signatures, setSignatures] = useState<Record<string, [boolean, boolean]>>({});
+  const [certificateId, setCertificateId] = useState("");
+  const [certificate, setCertificate] = useState(false);
+  const [post, setPost] = useState(false);
+  const [customProjects, setCustomProjects] = useState<Project[]>([]);
+  const [swap, setSwap] = useState<(typeof swaps)[number] | null>(null);
+  const [teach, setTeach] = useState("Python");
+  const [need, setNeed] = useState("Local Tech Referrals");
+  const [matched, setMatched] = useState(false);
+  const [scheduled, setScheduled] = useState<string[]>([]);
+  const allProjects = [...projects, ...customProjects];
+  const checks = room ? roomChecks[room.id] ?? [true, false, false] : [];
+  const signed = certificateProject ? signatures[certificateProject.id] ?? [false, false] : [false, false];
+  const unlocked = isDualSigned(signed[0] ?? false, signed[1] ?? false);
+  const navigate = (id: string) => { setActiveTab(id); go(id); };
+  const sign = (index: 0 | 1) => {
+    if (!certificateProject) return;
+    const next: [boolean, boolean] = [signed[0] ?? false, signed[1] ?? false];
+    next[index] = !next[index];
+    setSignatures(prev => ({ ...prev, [certificateProject.id]: next }));
+    if (isDualSigned(next[0], next[1]) && !certificateId) setCertificateId(`SSL-${crypto.randomUUID().slice(0, 12).toUpperCase()}`);
   };
-
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
-          <a href="#overview" className="flex items-center gap-2 font-extrabold tracking-tight">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground"><ShieldCheck className="h-4 w-4" /></span>
-            TalentSandbox
-          </a>
-          <div className="hidden gap-1 lg:flex">{[8, 10, 17].map((n) => <span key={n} className="rounded-full bg-amber-soft px-2 py-0.5 text-[11px] font-bold text-amber">SDG {n}</span>)}</div>
-          <nav className="mx-auto hidden gap-1 md:flex">
-            {TABS.map(([id, l]) => <button key={id} onClick={() => go(id)} className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">{l}</button>)}
-          </nav>
-          <button onClick={() => go("talent")} className="ml-auto rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 md:ml-0">Launch a 2-Week Trial</button>
-        </div>
-      </header>
-
-      {/* Hero */}
-      <section id="overview" className="hero-grid scroll-mt-20">
-        <div className="mx-auto max-w-7xl px-4 pb-16 pt-20">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-success"><BadgeCheck className="h-3.5 w-3.5" />Risk-free, co-funded trial-to-hire</span>
-          <h1 className="mt-6 max-w-4xl text-4xl font-extrabold tracking-tight md:text-6xl">Hire Proven Talent Without the Local-Experience Guesswork.</h1>
-          <p className="mt-6 max-w-2xl text-lg text-muted-foreground">Test vetted refugee professionals in a structured, 10-day paid work trial—subsidized up to 80% by NGO & cohort grants. Zero onboarding friction, objective scorecards, and one-click hiring.</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={() => go("calculator")} className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground hover:opacity-90"><Calculator className="h-4 w-4" />Calculate Your Trial Cost</button>
-            <button onClick={() => go("talent")} className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-5 py-3 font-semibold hover:bg-muted"><Users className="h-4 w-4" />Explore Vetted Talent</button>
-          </div>
-          <div className="mt-14 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
-            {[["80%", "Grant Subsidy Available", "text-success"], ["10-Day", "Structured Evaluation", "text-foreground"], ["74%", "Trial-to-Hire Conversion Rate", "text-success"], ["SDGs 8·10·17", "Aligned with the Global Goals", "text-amber"]].map(([v, l, c]) => (
-              <div key={l} className="bg-card p-6"><div className={`text-3xl font-extrabold ${c}`}>{v}</div><div className="mt-1 text-sm text-muted-foreground">{l}</div></div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Calculator */}
-      <Section id="calculator" eyebrow="Core Feature 1" title="Co-Funded Stipend Calculator" sub={`Estimate your out-of-pocket cost for a 2-week (${HOURS}-hour) trial with ${candidate.name}.`}>
-        <div className="grid gap-6 lg:grid-cols-5">
-          <div className="space-y-6 rounded-xl border border-border bg-card p-6 lg:col-span-3">
-            <label className="block"><span className="text-sm font-semibold">Role Tier</span>
-              <select value={tier} onChange={(e) => { const t = +e.target.value; setTier(t); setRate(TIER_DEFAULT_RATE[t]!); }} className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2.5">
-                {TIERS.map((t, i) => <option key={t} value={i}>{t}</option>)}
-              </select>
-            </label>
-            <label className="block"><div className="flex justify-between text-sm font-semibold"><span>Hourly Stipend Rate</span><span>${rate}/hr</span></div>
-              <input type="range" min={15} max={60} value={rate} onChange={(e) => setRate(+e.target.value)} className="mt-3 w-full accent-[var(--success)]" />
-              <div className="flex justify-between text-xs text-muted-foreground"><span>$15/hr</span><span>{HOURS} hrs over 2 weeks</span><span>$60/hr</span></div>
-            </label>
-            <div><span className="text-sm font-semibold">Grant / Cohort Subsidy Tier</span>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {GRANTS.map((g, i) => (
-                  <button key={g.label} onClick={() => setGrant(i)} className={`rounded-lg border p-3 text-left transition ${grant === i ? "border-success bg-success-soft" : "border-border hover:bg-muted"}`}>
-                    <div className="text-xl font-extrabold text-success">{g.pct}%</div><div className="text-xs text-muted-foreground">{g.label}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col rounded-xl bg-primary p-6 text-primary-foreground lg:col-span-2">
-            <div className="text-sm opacity-70">Total 2-Week Trial Value</div>
-            <div className="text-3xl font-bold">{usd(total)}</div>
-            <div className="mt-4 flex justify-between rounded-lg bg-success/20 px-3 py-2"><span className="text-sm">Partner Grant Coverage ({pct}%)</span><span className="font-bold text-success-soft">−{usd(covered)}</span></div>
-            <div className="mt-6 text-sm opacity-70">Net Employer Out-of-Pocket</div>
-            <div className="text-5xl font-extrabold">{usd(net)}</div>
-            <div className="mt-2 text-sm opacity-70">{usd(net / 10)} per trial day · {usd(total / 10)} gross/day</div>
-            <button onClick={() => setReserve(true)} className="mt-6 rounded-lg bg-success px-4 py-3 font-semibold text-primary-foreground hover:opacity-90">Reserve Subsidized Seat</button>
-          </div>
-        </div>
-      </Section>
-
-      {/* Rubric */}
-      <Section id="rubric" eyebrow="Core Feature 2" title="10-Day Trial Rubric & Evaluation" sub="Standardized, bias-free criteria with a live weighted readiness score.">
-        <div className="rounded-xl border border-border bg-card p-6">
-          <div className="flex flex-wrap items-center gap-4">
-            <Avatar c={candidate} />
-            <div><div className="text-lg font-bold">{candidate.name}</div><div className="text-sm text-muted-foreground">{candidate.role} · Active trial · Day 7 of 10</div></div>
-            <div className="ml-auto text-right"><div className="text-4xl font-extrabold text-success">{r.pct}%</div><div className="text-sm font-semibold">{r.tier}</div></div>
-          </div>
-          <ol className="mt-8 grid gap-4 md:grid-cols-4">
-            {MILESTONES.map((m) => (
-              <li key={m.day} className={`rounded-lg border p-4 ${m.day <= 7 ? "border-success bg-success-soft" : "border-border"}`}>
-                <div className="flex items-center gap-2 text-xs font-bold text-success">{m.day <= 7 && <CheckCircle2 className="h-3.5 w-3.5" />}DAY {m.day}</div>
-                <div className="mt-1 font-semibold">{m.title}</div><div className="text-xs text-muted-foreground">{m.desc}</div>
-              </li>
-            ))}
-          </ol>
-          <div className="mt-8 grid gap-4 md:grid-cols-2">
-            {CRITERIA.map((c) => (
-              <div key={c.key} className="rounded-lg border border-border p-4">
-                <div className="flex justify-between text-sm"><span className="font-semibold">{c.label}</span><span className="text-muted-foreground">{c.weight * 100}% weight</span></div>
-                <div className="mt-2 flex gap-1">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} aria-label={`${c.label} ${n} stars`} onClick={() => setScores({ ...scores, [c.key]: n })}>
-                      <Star className={`h-6 w-6 ${n <= (scores[c.key] ?? 0) ? "fill-amber text-amber" : "text-border"}`} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-success transition-all" style={{ width: `${r.pct}%` }} /></div>
-        </div>
-
-        <div className="mt-6 grid gap-6 md:grid-cols-2">
-          <ActionCard icon={<Briefcase />} eyebrow="Core Feature 3 · Card A" title="Extend Full-Time Offer" desc="Generate an instant offer summary with pre-filled role details and zero placement fees." cta="Generate Offer" onClick={() => setOffer(true)} />
-          <ActionCard icon={<Award />} eyebrow="Core Feature 3 · Card B" title="Issue Verified Portable Scorecard" desc="Can't hire yet? Give the candidate verified local experience they can show future employers." cta="Issue Scorecard" onClick={() => setCert(true)} />
-        </div>
-      </Section>
-
-      {/* Talent */}
-      <Section id="talent" eyebrow="Vetted Talent" title="Candidate Sandbox Directory" sub="Pre-vetted professionals with international credentials, eligible for grant co-funding.">
-        <div className="mb-6 flex flex-wrap gap-2">
-          {["All", "Engineering", "Finance", "Design"].map((f) => <button key={f} onClick={() => setFilter(f)} className={`rounded-full border px-4 py-1.5 text-sm font-medium ${filter === f ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted"}`}>{f}</button>)}
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {CANDIDATES.filter((c) => filter === "All" || c.category === filter).map((c) => (
-            <div key={c.id} className="flex flex-col rounded-xl border border-border bg-card p-5">
-              <div className="flex items-start justify-between"><Avatar c={c} /><span className="rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-bold text-success">Grant Eligible</span></div>
-              <div className="mt-4 font-bold">{c.name}</div><div className="text-sm text-muted-foreground">{c.role}</div>
-              <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex gap-1.5"><Globe2 className="h-3.5 w-3.5 shrink-0" />{c.origin}</div>
-                <div className="flex gap-1.5"><ClipboardCheck className="h-3.5 w-3.5 shrink-0" />{c.credential}</div>
-                <div className="flex gap-1.5"><Languages className="h-3.5 w-3.5 shrink-0" />{c.languages.join(", ")}</div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1">{c.skills.map((s) => <span key={s} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-[11px] font-medium"><BadgeCheck className="h-3 w-3 text-success" />{s}</span>)}</div>
-              <button onClick={() => startTrial(c)} className="mt-5 rounded-lg bg-primary py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Start 10-Day Trial</button>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      <footer className="border-t border-border bg-card">
-        <div className="mx-auto max-w-7xl px-4 py-10 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2 font-bold text-foreground"><ShieldCheck className="h-4 w-4" />TalentSandbox</div>
-          <p className="mt-3">Public-private partnership: employers, NGOs and cohort grant partners co-fund fair, paid trials.</p>
-          <p className="mt-2">Built for the ILO Cohort Mini-Hackathon • Advancing <span className="font-semibold text-amber">SDG 8</span> (Decent Work), <span className="font-semibold text-amber">SDG 10</span> (Reduced Inequalities), and <span className="font-semibold text-amber">SDG 17</span> (Partnerships for the Goals).</p>
-        </div>
-      </footer>
-
-      <Dialog open={reserve} onOpenChange={setReserve}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Subsidized seat reserved</DialogTitle><DialogDescription>Your trial seat with {candidate.name} is on hold for 72 hours.</DialogDescription></DialogHeader>
-          <Rows rows={[["Role tier", TIERS[tier]!], ["Rate", `$${rate}/hr × ${HOURS} hrs`], ["Grant", `${GRANTS[grant]!.label} (${pct}%)`], ["Your cost", usd(net)]]} />
-          <button onClick={() => { setReserve(false); toast.success("Reservation confirmed"); }} className="rounded-lg bg-success py-2.5 font-semibold text-primary-foreground">Confirm Reservation</button>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={offer} onOpenChange={setOffer}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Offer summary</DialogTitle><DialogDescription>Pre-filled from the trial. No placement fees.</DialogDescription></DialogHeader>
-          <Rows rows={[["Candidate", candidate.name], ["Position", `${candidate.role} (${TIERS[tier]})`], ["Type", "Full-time, permanent"], ["Start", "Within 2 weeks"], ["Readiness", `${r.pct}% — ${r.tier}`], ["Placement fee", "$0"]]} />
-          <button onClick={() => { setOffer(false); toast.success(`Offer sent to ${candidate.name}`); }} className="rounded-lg bg-primary py-2.5 font-semibold text-primary-foreground">Send Offer</button>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={cert} onOpenChange={setCert}>
-        <DialogContent className="max-w-lg">
-          <div className="rounded-xl border-2 border-success p-6">
-            <div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-widest text-success">Verified</span><span className="font-mono text-xs text-muted-foreground">{certId}</span></div>
-            <DialogTitle className="mt-3 text-xl">Verified Local Experience Certificate & Portable Scorecard</DialogTitle>
-            <DialogDescription className="mt-1">{candidate.name} completed a 10-day structured paid trial as {candidate.role}.</DialogDescription>
-            <div className="mt-5 space-y-2">
-              {CRITERIA.map((c) => <div key={c.key} className="flex justify-between text-sm"><span>{c.label}</span><span className="font-semibold">{scores[c.key]}/5</span></div>)}
-              <div className="flex justify-between border-t border-border pt-2 font-bold"><span>Readiness</span><span className="text-success">{r.pct}% — {r.tier}</span></div>
-            </div>
-            <div className="mt-5 flex items-center gap-2 rounded-lg bg-success-soft p-3 text-sm text-success"><Sparkles className="h-4 w-4" />Employer sign-off · TalentSandbox Partner</div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => { navigator.clipboard?.writeText(`https://talentsandbox.app/verify/${certId}`); toast.success("Share link copied"); }} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border py-2.5 font-semibold hover:bg-muted"><Copy className="h-4 w-4" />Copy Link</button>
-            <button onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-2.5 font-semibold text-primary-foreground"><Download className="h-4 w-4" />Download</button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function Section({ id, eyebrow, title, sub, children }: { id: string; eyebrow: string; title: string; sub: string; children: React.ReactNode }) {
-  return (
-    <section id={id} className="scroll-mt-20 border-t border-border">
-      <div className="mx-auto max-w-7xl px-4 py-16">
-        <div className="text-xs font-bold uppercase tracking-widest text-amber">{eyebrow}</div>
-        <h2 className="mt-2 text-3xl font-extrabold tracking-tight">{title}</h2>
-        <p className="mt-2 mb-8 text-muted-foreground">{sub}</p>
-        {children}
+  const certificateText = () => `SKILLSWAP LOCAL\nDual-Signed Local Case Study Certificate\n\n${certificateProject?.title ?? ""}\n${certificateProject?.organization ?? ""}\nSpecialist: ${certificateProject?.specialist ?? ""}\nLocal collaborator: ${certificateProject?.collaborator ?? ""}\nSkills: ${certificateProject?.specialty ?? ""}\nVerified by local co-builder and beneficiary (simulated demo signatures).\nVerification hash: ${certificateId}\n${certificateProject?.id === "clinic" ? "Impact: Reduced stockouts by 35%" : "Impact: Completed community deliverables"}\n\nIssued in the SkillSwap Local demonstration. Not an independently verified credential.`;
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([certificateText()], { type: "text/plain" }));
+    const a = document.createElement("a"); a.href = url; a.download = `${certificateId}-case-study.txt`; a.click(); URL.revokeObjectURL(url);
+  };
+  return <div className="min-h-screen bg-background text-foreground">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md">
+      <div className="page-width flex h-20 items-center justify-between gap-5">
+        <a href="#overview" onClick={() => setActiveTab("overview")} className="flex shrink-0 items-center gap-2.5" aria-label="SkillSwap Local home"><span className="logo-mark"><HeartHandshake size={24} /></span><span className="font-display text-lg font-extrabold leading-tight">SkillSwap<span className="block text-xs font-medium text-muted-foreground">LOCAL CO-CREATION GUILD</span></span></a>
+        <nav className="hidden items-center gap-1 xl:flex" aria-label="Main navigation">{tabs.map(([id, title]) => <Button key={id} variant="ghost" onClick={() => id && navigate(id)} className={activeTab === id ? "bg-accent text-primary" : "text-muted-foreground"}>{title}</Button>)}</nav>
+        <Button onClick={() => setPost(true)} className="h-10"><Plus /> <span className="hidden sm:inline">Post a Local Challenge</span><span className="sm:hidden">Post Challenge</span></Button>
       </div>
-    </section>
-  );
+      <nav aria-label="Section navigation" className="flex overflow-x-auto border-t border-border px-4 xl:hidden">{tabs.map(([id, title]) => <Button key={id} variant="ghost" className={`h-10 shrink-0 rounded-none text-xs ${activeTab === id ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`} onClick={() => id && navigate(id)}>{title}</Button>)}</nav>
+    </header>
+    <main>
+      <section id="overview" className="hero-section relative isolate scroll-mt-32 overflow-hidden">
+        <img src={community.url} alt="Local professionals working together on a community project in a sunlit studio" className="hero-photo absolute inset-0 -z-20 h-full w-full object-cover" />
+        <div className="hero-shade absolute inset-0 -z-10" />
+        <div className="page-width py-14 md:py-16">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-background/80 px-3 py-1.5 text-xs font-semibold text-primary"><span className="h-1.5 w-1.5 rounded-full bg-coral" />Different journeys. Shared possibilities.</div>
+          <p className="mb-3 font-display text-sm font-bold text-primary">WELCOME TO SKILLSWAP LOCAL</p>
+          <h1 className="max-w-xl font-display text-4xl font-extrabold leading-[1.15] md:text-5xl">Build Together.<br />Prove Your Craft <span className="text-coral">Locally.</span></h1>
+          <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">A grassroots co-creation guild pairing skilled refugee specialists with local professionals to solve real community business challenges—earning dual-signed local proof of work and warm industry referrals.</p>
+          <div className="mt-7 flex flex-wrap gap-3"><Button size="lg" className="h-12 px-5" onClick={() => navigate("rooms")}>Join a Co-Build Sprint <ArrowUpRight /></Button><Button size="lg" variant="outline" className="h-12 bg-background/90 px-5" onClick={() => navigate("barter")}><ArrowLeftRight />Explore Skill Barter</Button></div>
+          <div className="mt-7 flex items-center gap-3"><div className="flex -space-x-2">{["YA", "GM", "MH", "DW"].map((n, i) => <span key={n} className={`avatar border-2 border-background ${i % 2 ? "bg-coral-soft text-coral" : "bg-accent text-primary"}`}>{n}</span>)}</div><span className="text-xs text-muted-foreground"><strong className="text-primary">Good people. Meaningful work.</strong><br />One stronger local community.</span></div>
+        </div>
+        <div className="absolute bottom-6 right-8 hidden items-center gap-2 rounded-md bg-background/95 px-4 py-3 text-xs text-primary shadow-soft lg:flex"><MapPin size={16} /><span>Local roots. Global talent.</span><HeartHandshake size={18} className="text-coral" /></div>
+      </section>
+      <section className="border-y border-border bg-card" aria-label="Community impact"><div className="page-width grid grid-cols-2 gap-y-7 py-7 md:grid-cols-4">{[["48", "Local business sprints completed", Users], ["100%", "Dual-signed local case studies", ShieldCheck], ["120+", "Peer skill swaps", ArrowLeftRight]].map(([value, label, Icon]) => { const I = Icon as typeof Users; return <div key={String(value)} className="flex items-center gap-3 md:border-r md:border-border md:pr-5"><I className="hidden shrink-0 text-coral sm:block" size={23} /><div><div className="font-display text-2xl font-extrabold text-primary">{String(value)}</div><p className="mt-1 text-xs text-muted-foreground">{String(label)}</p></div></div>; })}<div className="flex flex-col justify-center gap-2 md:pl-7"><div className="flex gap-1.5">{[8, 10, 17].map(n => <span key={n} className="rounded bg-accent px-2 py-1 text-xs font-bold text-primary">SDG {n}</span>)}</div><span className="text-xs text-muted-foreground">Local action. Shared global goals.</span></div></div></section>
+      <Section id="rooms" eyebrow="MEANINGFUL WORK, BUILT TOGETHER" title="Find your next co-build." description="Real local challenges. Two complementary skill sets. One shared impact." action={<span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-success" />{allProjects.length} community challenges</span>}>
+        <div className="mb-7 flex flex-wrap gap-2" role="group" aria-label="Challenge category">{categories.map(c => <Button key={c} variant={filter === c ? "default" : "ghost"} size="sm" aria-pressed={filter === c} onClick={() => setFilter(c)} className={filter === c ? "shadow-none" : "text-muted-foreground"}>{c}</Button>)}</div>
+        <div className="grid gap-5 md:grid-cols-3">{allProjects.filter(p => filter === "All" || p.category === filter).map(p => { const Icon = p.icon === "clinic" ? Stethoscope : p.icon === "code" ? Code2 : Palette; return <article key={p.id} className="project-card flex flex-col rounded-lg border border-border bg-card p-6 shadow-soft"><div className="flex items-center justify-between"><span className={`grid h-11 w-11 place-items-center rounded-lg ${p.icon === "design" ? "bg-coral-soft text-coral" : p.icon === "code" ? "bg-amber-soft text-amber" : "bg-accent text-primary"}`}><Icon size={22} /></span><span className="flex items-center gap-1.5 text-[11px] font-medium text-success"><span className="h-1.5 w-1.5 rounded-full bg-success" />{submitted.includes(p.id) ? "Awaiting sign-off" : "Open for collaboration"}</span></div><p className="mt-5 text-[11px] font-semibold text-coral">{p.category}</p><h3 className="mt-2 min-h-14 font-display text-lg font-bold leading-7">{p.title}</h3><p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground"><MapPin size={13} />{p.organization}</p><div className="my-5 space-y-3 border-y border-border py-4"><Person name={p.specialist} role={p.specialty} /><Person name={p.collaborator} role={p.collaboratorRole} local /></div><div className="mt-auto flex flex-wrap items-center justify-between gap-2 text-xs"><span className="flex items-center gap-1 text-muted-foreground"><Clock3 size={14} />{p.duration}</span><span className={p.reward.includes("$") ? "font-semibold text-coral" : "font-medium text-primary"}>{p.reward}</span></div><Button variant="outline" className="mt-5 w-full border-primary/20 text-primary" onClick={() => setRoom(p)}>Enter Co-Build Room <ArrowUpRight /></Button></article>; })}</div>
+        {allProjects.filter(p => filter === "All" || p.category === filter).length === 0 && <div className="py-12 text-center"><Leaf className="mx-auto mb-3 text-primary" /><p className="text-muted-foreground">No open challenges in this category yet.</p><Button className="mt-4" onClick={() => setPost(true)}><Plus />Post a Local Challenge</Button></div>}
+      </Section>
+      <Section id="portfolio" eyebrow="LOCAL EXPERIENCE. REAL TRUST." title="Your work deserves two signatures." description="A co-builder who knows your craft. An organization that felt your impact.">
+        <div className="grid items-start gap-10 lg:grid-cols-2"><div><div className="mb-5 flex items-center gap-2 text-xs font-semibold text-amber"><BadgeCheck size={16} />DUAL-SIGNATURE PROOF OF WORK <span className="ml-auto text-muted-foreground">Demo sign-off</span></div><h3 className="font-display text-xl font-bold">{certificateProject?.id === "clinic" ? "Clinic Inventory Tracker" : certificateProject?.title}</h3><p className="mt-2 text-sm text-muted-foreground">{certificateProject?.id === "clinic" ? "Reduced stockouts by 35%" : "Completed community project deliverables"} · {certificateProject?.organization}</p><div className="mt-6 space-y-3">{[["Local Professional Co-Builder Sign-Off", `${certificateProject?.collaborator ?? "Grace"} M.`, certificateProject?.collaboratorRole ?? "Operations Lead", "Verified Collaborator"], ["Beneficiary Organization Sign-Off", certificateProject?.id === "clinic" ? "Dr. Otieno" : "Organization representative", certificateProject?.organization ?? "", "Client Verified"]].map(([label, name, role, verification], i) => <div key={label} className={`flex items-center justify-between gap-4 rounded-lg border p-4 ${signed[i] ? "border-success/40 bg-accent" : "border-border bg-card"}`}><div><p className="text-xs font-semibold">{label}</p><p className="mt-2 text-sm font-medium">{signed[i] ? "Signed by " : "Awaiting "}{name}</p><p className="mt-1 text-xs text-muted-foreground">{role} · {verification}</p></div><Button variant={signed[i] ? "secondary" : "outline"} size="sm" onClick={() => sign(i === 0 ? 0 : 1)} aria-pressed={signed[i] ?? false}>{signed[i] ? <><Check />Signed</> : "Sign off"}</Button></div>)}</div><p className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck size={14} />{unlocked ? "Both signatures collected. Your case study is unlocked." : "Both signatures are required to unlock the case study."}</p></div>
+        <div className={`certificate-preview relative rounded-lg border border-amber/35 bg-card p-7 shadow-soft ${unlocked ? "" : "opacity-80"}`}><div className="flex justify-between"><HeartHandshake size={26} className="text-primary" /><span className="flex items-center gap-1.5 rounded bg-amber-soft px-2 py-1 text-[10px] font-bold text-amber"><BadgeCheck size={13} />{unlocked ? "DUAL-SIGNED" : "AWAITING SIGNATURES"}</span></div><p className="mt-6 text-[10px] font-bold text-muted-foreground">SKILLSWAP LOCAL · PROOF OF WORK</p><h3 className="mt-2 font-display text-2xl font-bold">Local Case Study<br />Certificate</h3><p className="mt-4 text-sm text-muted-foreground">Awarded to <strong className="text-primary">{certificateProject?.specialist}</strong></p><p className="mt-2 text-sm font-semibold">{certificateProject?.title}</p><div className="mt-4 flex flex-wrap gap-2">{[certificateProject?.specialty ?? "Data Analysis", "Co-Creation", "Local Collaboration"].map(s => <span key={s} className="rounded bg-accent px-2 py-1 text-[10px] font-medium text-primary">{s}</span>)}</div><div className="mt-5 flex justify-between border-t border-border pt-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><CheckCheck size={14} className="text-amber" />2 trusted local signatures</span><span>{unlocked ? certificateId : "Verification pending"}</span></div><Button className="mt-5 w-full" disabled={!unlocked} onClick={() => setCertificate(true)}><FileCheck2 />View Your Case Study <ArrowUpRight /></Button></div></div>
+      </Section>
+      <Section id="barter" eyebrow="SHARE WHAT YOU KNOW. GROW WHERE YOU ARE." title="Good skills make great exchanges." description="Trade your expertise for local insight, connections, and a little career momentum." action={<span className="flex items-center gap-1.5 text-xs font-medium text-coral"><ArrowLeftRight size={15} />Give a skill. Gain a connection.</span>}>
+        <form className="mb-8 grid items-end gap-4 border-y border-border py-6 md:grid-cols-[1fr_auto_1fr_auto]" onSubmit={e => { e.preventDefault(); setMatched(true); }}><label className="text-xs font-semibold">I can share<select className={fieldClass} value={teach} onChange={e => { setTeach(e.target.value); setMatched(false); }}>{["Python", "Financial Modeling", "UI/UX Design", "French / Arabic"].map(s => <option key={s}>{s}</option>)}</select></label><ArrowLeftRight className="mb-3 hidden text-coral md:block" size={20} /><label className="text-xs font-semibold">I’m looking for<select className={fieldClass} value={need} onChange={e => { setNeed(e.target.value); setMatched(false); }}>{["Local Tech Referrals", "CV Localization", "Industry Coffee Chats", "Licensing Guidance"].map(s => <option key={s}>{s}</option>)}</select></label><Button type="submit" className="h-11"><Sparkles />Find My Match</Button></form>
+        {matched && <div className="mb-5 flex items-center justify-between text-sm"><p className="text-primary">{matchSwaps(teach, need).length} potential exchanges</p><Button variant="link" onClick={() => setMatched(false)}>View all swaps</Button></div>}
+        <div className="grid gap-5 md:grid-cols-3">{(matched ? matchSwaps(teach, need) : swaps).map(s => <article key={s.id} className="flex flex-col rounded-lg border border-border bg-card p-6"><div className="flex items-center gap-3"><span className="avatar h-10 w-10 bg-coral-soft text-coral">{s.initials}</span><div><h3 className="text-sm font-semibold">{s.name}</h3><p className="mt-0.5 text-xs text-muted-foreground">{s.role}</p></div><BadgeCheck size={17} className="ml-auto text-primary" /></div><div className="mt-5"><p className="text-[10px] font-bold text-primary">OFFERS</p><h4 className="mt-2 min-h-12 text-sm font-semibold leading-6">{s.offer}</h4><p className="mt-2 text-xs text-muted-foreground">{s.detail}</p></div><div className="my-4 flex items-center gap-3 text-coral"><span className="h-px flex-1 bg-border" /><ArrowLeftRight size={18} /><span className="h-px flex-1 bg-border" /></div><p className="text-[10px] font-bold text-coral">SEEKS</p><p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">{s.need}</p><Button variant="outline" className="mt-5 w-full" onClick={() => setSwap(s)}><ArrowLeftRight />{scheduled.includes(s.id) ? "Propose Another Swap" : "Propose Swap"}<ArrowUpRight /></Button></article>)}</div>
+        {matched && matchSwaps(teach, need).length === 0 && <p className="py-8 text-center text-muted-foreground">No matching exchanges yet. Try another skill or local opportunity.</p>}
+      </Section>
+    </main>
+    <footer className="border-t border-border bg-primary py-10 text-primary-foreground"><div className="page-width"><div className="flex flex-wrap items-center justify-between gap-5"><a href="#overview" className="flex items-center gap-2 font-display text-lg font-bold"><HeartHandshake size={22} />SkillSwap Local</a><div className="flex gap-2">{[8, 10, 17].map(n => <span key={n} className="rounded border border-primary-foreground/25 px-2 py-1 text-xs">SDG {n}</span>)}</div></div><p className="mt-6 max-w-3xl text-xs leading-6 text-primary-foreground/70">SkillSwap Local — Built for the ILO Cohort Mini-Hackathon • Advancing SDG 8 (Decent Work & Local Economic Growth) and SDG 17 (Grassroots Multi-Stakeholder Partnerships).</p><p className="mt-3 text-xs text-primary-foreground/50">Community demonstration · No real requests are sent · Changes last for this visit.</p></div></footer>
+    <Dialog open={!!room} onOpenChange={open => { if (!open) setRoom(null); }}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>{room?.title}</DialogTitle><DialogDescription>{room?.organization} · {room?.duration} · {room?.reward}</DialogDescription></DialogHeader><div className="flex flex-wrap gap-5 border-y border-border py-4"><Person name={room?.specialist ?? ""} role={room?.specialty ?? ""} /><Person name={room?.collaborator ?? ""} role={room?.collaboratorRole ?? ""} local /></div><div className="flex justify-between text-sm"><span className="font-semibold">Sprint progress</span><span className="text-primary">{submitted.includes(room?.id ?? "") ? "Awaiting dual sign-off" : `${checks.filter(Boolean).length} / ${checks.length} milestones complete`}</span></div><progress className="guild-progress h-2 w-full" max={3} value={checks.filter(Boolean).length} /><div className="space-y-3">{room?.deliverables.map((d, i) => <label key={d} className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3"><input type="checkbox" className="mt-1 accent-primary" checked={checks[i] ?? false} disabled={submitted.includes(room.id)} onChange={e => { const next = [...checks]; next[i] = e.target.checked; setRoomChecks(prev => ({ ...prev, [room.id]: next })); }} /><span><span className="text-[10px] font-bold text-coral">MILESTONE {i + 1}</span><span className="mt-1 block text-sm font-medium">{d}</span></span></label>)}</div><Button disabled={!canSubmitDeliverables(checks) || submitted.includes(room?.id ?? "")} onClick={() => { if (!room) return; setSubmitted(prev => [...prev, room.id]); setCertificateProject(room); setCertificateId(""); setRoom(null); navigate("portfolio"); toast.success("Deliverables submitted. Ready for both demo signatures."); }}><Send />Submit Deliverable for Dual Sign-Off</Button><p className="text-xs text-muted-foreground">Demo workspace · {room?.specialist} + {room?.collaborator}</p></DialogContent></Dialog>
+    <Dialog open={certificate} onOpenChange={setCertificate}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><div className="mb-3 flex items-center gap-2 text-amber"><BadgeCheck />DUAL-SIGNED</div><DialogTitle>Dual-Signed Local Case Study Certificate</DialogTitle><DialogDescription>{certificateProject?.specialist} · {certificateProject?.title}</DialogDescription></DialogHeader><div className="space-y-4 border-y border-border py-5"><p className="font-display text-xl font-bold text-primary">{certificateProject?.id === "clinic" ? "Reduced stockouts by 35%" : "Community deliverables completed"}</p><p className="text-sm">Skills: {certificateProject?.specialty}, co-creation, local collaboration</p><p className="text-sm">Local sign-off: {certificateProject?.collaborator}</p><p className="text-sm">Beneficiary sign-off: {certificateProject?.organization}</p><p className="break-all font-mono text-xs text-muted-foreground">Verification hash: {certificateId}</p><p className="text-xs text-muted-foreground">Simulated signatures for this community demo; not an independently verified credential.</p></div><div className="flex gap-3"><Button className="flex-1" onClick={download}><Download />Download</Button><Button variant="outline" className="flex-1" onClick={async () => { try { if (navigator.share) await navigator.share({ title: "SkillSwap Local Case Study", text: certificateText() }); else { await navigator.clipboard.writeText(certificateText()); toast.success("Case study copied for sharing"); } } catch { toast.error("Sharing unavailable. Please download the case study."); } }}><Link2 />Share</Button></div><Button variant="link" asChild><a href={`mailto:?subject=${encodeURIComponent(`Employer enquiry: ${certificateProject?.specialist ?? ""}`)}&body=${encodeURIComponent(certificateText())}`}>Prepare Employer Contact Email <ArrowUpRight /></a></Button></DialogContent></Dialog>
+    <Dialog open={!!swap} onOpenChange={open => { if (!open) setSwap(null); }}><DialogContent><DialogHeader><DialogTitle>Propose a swap with {swap?.name}</DialogTitle><DialogDescription>{swap?.offer} ↔ {swap?.need}</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={e => { e.preventDefault(); if (!swap) return; setScheduled(prev => [...prev, swap.id]); setSwap(null); toast.success("Swap agreement confirmed in this demo. No invitation was sent."); }}><label className="block text-xs font-semibold">Your name<input className={fieldClass} required name="name" placeholder="Your full name" /></label><div className="grid grid-cols-2 gap-3"><label className="text-xs font-semibold">Preferred date<input className={fieldClass} required type="date" name="date" min="2026-11-26" /></label><label className="text-xs font-semibold">Preferred time<input className={fieldClass} required type="time" name="time" /></label></div><label className="block text-xs font-semibold">Meeting format<select className={fieldClass} name="format"><option>Online coffee chat</option><option>In-person community meetup</option></select></label><label className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><input className="mt-1 accent-primary" type="checkbox" required />I agree to a respectful, reciprocal exchange and will confirm scope with my swap partner.</label><Button className="w-full" type="submit"><CalendarDays />Confirm Swap Agreement</Button><p className="text-xs text-muted-foreground">Demo scheduling only. No calendar event or message is sent.</p></form></DialogContent></Dialog>
+    <Dialog open={post} onOpenChange={setPost}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>Post a Local Challenge</DialogTitle><DialogDescription>A real community need starts a meaningful collaboration.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={e => { e.preventDefault(); const data = new FormData(e.currentTarget); const p: Project = { id: crypto.randomUUID(), title: String(data.get("title")), organization: String(data.get("organization")), category: String(data.get("category")), specialist: "Specialist needed", specialty: "Open community role", collaborator: "Local collaborator needed", collaboratorRole: "Open community role", duration: String(data.get("duration")), reward: String(data.get("reward")), icon: "code", deliverables: ["Agree scope & shared milestones", "Build community deliverable", "Review outcomes & hand over"] }; setCustomProjects(prev => [...prev, p]); setFilter("All"); setPost(false); navigate("rooms"); toast.success("Your challenge has been added to this demo board."); }}><label className="block text-xs font-semibold">Challenge title<input name="title" required className={fieldClass} placeholder="What would you like to build?" /></label><label className="block text-xs font-semibold">Business or organization<input name="organization" required className={fieldClass} placeholder="Organization name" /></label><label className="block text-xs font-semibold">Category<select name="category" className={fieldClass}>{categories.filter(c => c !== "All").map(c => <option key={c}>{c}</option>)}</select></label><div className="grid grid-cols-2 gap-3"><label className="text-xs font-semibold">Sprint duration<select name="duration" className={fieldClass}><option>2 weeks</option><option>3 weeks</option></select></label><label className="text-xs font-semibold">Contribution<select name="reward" className={fieldClass}><option>Pro-Bono + Referral Pledge</option><option>$150 Micro-Stipend</option></select></label></div><Button className="w-full" type="submit"><Plus />Post Challenge</Button><p className="text-xs text-muted-foreground">Demo board only. Your challenge lasts for this visit.</p></form></DialogContent></Dialog>
+  </div>;
 }
-function Avatar({ c }: { c: Candidate }) {
-  return <div className="grid h-12 w-12 place-items-center rounded-full bg-primary font-bold text-primary-foreground">{c.initials}</div>;
-}
-function ActionCard({ icon, eyebrow, title, desc, cta, onClick }: { icon: React.ReactNode; eyebrow: string; title: string; desc: string; cta: string; onClick: () => void }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-6">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-success-soft text-success [&_svg]:h-5 [&_svg]:w-5">{icon}</div>
-      <div className="mt-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">{eyebrow}</div>
-      <div className="mt-1 text-lg font-bold">{title}</div>
-      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
-      <button onClick={onClick} className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">{cta}</button>
-    </div>
-  );
-}
-function Rows({ rows }: { rows: [string, string][] }) {
-  return <div className="divide-y divide-border rounded-lg border border-border">{rows.map(([k, v]) => <div key={k} className="flex justify-between px-4 py-2.5 text-sm"><span className="text-muted-foreground">{k}</span><span className="font-semibold">{v}</span></div>)}</div>;
-}
+function Person({ name, role, local = false }: { name: string; role: string; local?: boolean }) { return <div className="flex items-center gap-2.5"><span className={`avatar h-8 w-8 shrink-0 text-[10px] ${local ? "bg-coral-soft text-coral" : "bg-accent text-primary"}`}>{name.split(" ").map(n => n[0]).slice(0, 2).join("")}</span><div className="min-w-0"><p className="flex items-center gap-1.5 text-xs font-semibold">{name}{local && <BadgeCheck size={12} className="text-amber" />}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{role}</p></div></div>; }
+function Section({ id, eyebrow, title, description, children, action }: { id: string; eyebrow: string; title: string; description: string; children: ReactNode; action?: ReactNode }) { return <section id={id} className={`scroll-mt-36 border-b border-border ${id === "portfolio" ? "bg-secondary" : "bg-background"}`}><div className="page-width py-14 md:py-16"><p className="mb-3 text-[10px] font-bold text-coral">{eyebrow}</p><div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><h2 className="font-display text-2xl font-extrabold md:text-3xl">{title}</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p></div>{action}</div>{children}</div></section>; }

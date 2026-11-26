@@ -28,3 +28,8 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Application structure
+- Keep the single-page guild experience in the index route and browser-safe project data and eligibility helpers in `src/lib/guild.ts` so interactions share testable rules.
+- Guild signatures, posting, and swap scheduling are explicitly session-only demonstrations; never present them as real verification or sent requests without a connected service.
+- Store application images as Lovable Assets JSON pointers rather than repository binaries.
