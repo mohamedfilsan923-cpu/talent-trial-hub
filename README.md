@@ -1,5 +1,5 @@
 # Talent Trial Hub
-
+live link=https://id-preview--981dd9ca-eb5b-5673-9043-cae1afc827ef.lovable.app/?__lovable_receipt=mat_2th93cb75d81c9zzbxa2efgqrr
 Build a modern, high-trust web application called "TalentSandbox" — an Employer Trial-to-Hire & Risk-Free Sandbox platform designed to help employers test skilled refugee talent through structured, co-funded 2-week paid trials (aligned with UN SDGs 8, 10, and 17).
 
 ### Design & Aesthetic
